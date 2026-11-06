@@ -6,10 +6,11 @@ Description: >
 Parameters:
   GitHubOwner:
     Type: String
+    Default: 1024inno-lab
     Description: "GitHub 계정명 (예시 andrew)"
   GitHubRepo:
     Type: String
-    Default: invest-desk
+    Default: my-project
     Description: 저장소 이름
   AppStackName:
     Type: String

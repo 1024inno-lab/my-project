@@ -49,8 +49,10 @@ EventBridge Scheduler (서울 시간)
 2. **템플릿 파일 업로드**에서 이 저장소의 `infra/bootstrap.yaml`을 선택합니다.
 3. 아래처럼 입력합니다.
    - 스택 이름: `invest-desk-bootstrap`
-   - `GitHubOwner`: GitHub 계정명
-   - `GitHubRepo`: `invest-desk`
+   - `GitHubOwner`: `1024inno-lab` (기본값으로 채워져 있음)
+   - `GitHubRepo`: `my-project` (기본값으로 채워져 있음)
+   - `AppStackName`: `invest-desk` (그대로)
+   - `CreateOidcProvider`: `true` (그대로)
 4. 마지막 화면에서 "IAM 리소스를 생성할 수 있음을 승인"에 체크하고 **제출**합니다.
 5. 완료되면 **출력** 탭의 `DeployRoleArn` 값을 복사합니다.
 
@@ -93,7 +95,7 @@ EventBridge Scheduler (서울 시간)
 ## 평소 개발 흐름 (형상관리)
 
 ```bash
-git clone git@github.com:<계정>/invest-desk.git && cd invest-desk
+git clone https://github.com/1024inno-lab/my-project.git && cd my-project
 git switch -c feature/화면-수정        # 작업 브랜치
 # ... 수정 ...
 cd backend && pytest -q && cd ..       # 테스트
