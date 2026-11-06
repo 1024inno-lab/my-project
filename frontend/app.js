@@ -209,12 +209,13 @@
       <section class="card grow-3" aria-labelledby="h-stock">
         <div class="card-head"><div><h2 id="h-stock">주식</h2><div class="sub">수량·평균단가 입력 · 현재가 KIS 실시간</div></div>
           <button class="btn small" data-act="add" data-cat="stock">+ 종목 추가</button></div>
-        ${stocks.length ? `<div class="table-wrap"><table class="t"><thead><tr>${sortHeads("stock")}<th><span class="sr-only">수정</span></th></tr></thead><tbody>
+        ${stocks.length ? `<div class="table-wrap"><table class="t" style="min-width:980px"><thead><tr>${sortHeads("stock")}<th><span class="sr-only">수정</span></th></tr></thead><tbody>
           ${stocks.map((r) => { const sc = scenarioFor(r); const cur = r.market === "US" ? "USD" : "KRW"; return `<tr>
             <td class="name"><b>${esc(r.name || r.code)}</b><span>${esc(r.code)} · ${r.market === "US" ? esc(r.excd || "NAS") : "국내"}</span></td>
             <td class="r mono">${krw(r.qty)}</td><td class="r mono">${price(r.avg, cur)}</td>
             <td class="r"><b class="mono">${price(r.price, cur)}</b><span class="src ${r.live ? "live" : ""}">${r.live ? "● 실시간" : "직전 값"}</span></td>
             <td class="r mono ${cls(r.rate)}">${pct(r.rate)}</td>
+            <td class="r"><b class="mono">${krw(r.valueKRW)}</b>${r.market === "US" ? `<span class="src mono">$${((+r.price || 0) * (+r.qty || 0)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>` : ""}</td>
             <td class="r mono ${cls(r.plKRW)}">${signed(r.plKRW)}<br><small>${pct(r.plPct, 1)}</small></td>
             <td>${sc ? verdictBadge(sc.verdict) : '<span class="muted">—</span>'}</td>
             <td><button class="icon-btn" aria-label="${esc(r.name)} 수정" data-act="edit" data-id="${esc(r.id)}">${icon.edit}</button></td></tr>`; }).join("")}
@@ -270,6 +271,7 @@
       ["avg", "평균단가", "r", "num", (r, fx) => (+r.avg || 0) * (isUSD(r) ? fx : 1)],
       ["price", "현재가", "r", "num", (r, fx) => (+r.price || 0) * (isUSD(r) ? fx : 1)],
       ["rate", "등락률", "r", "num", (r) => num(r.rate)],
+      ["value", "평가금액", "r", "num", (r) => r.valueKRW],
       ["pl", "평가손익", "r", "num", (r) => r.plKRW],
       ["plPct", "수익률", "r", "num", (r) => r.plPct],
       ["verdict", "오늘 판단", "", "num", (r) => { const sc = scenarioFor(r); return sc ? VERDICT_ORDER[sc.verdict] ?? 3 : null; }],
