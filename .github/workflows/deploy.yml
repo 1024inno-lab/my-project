@@ -80,6 +80,37 @@ jobs:
           echo "bucket=$(get SiteBucketName)" >> "$GITHUB_OUTPUT"
           echo "dist=$(get DistributionId)" >> "$GITHUB_OUTPUT"
           echo "site=$(get SiteUrl)" >> "$GITHUB_OUTPUT"
+          echo "secret=$(get SecretArn)" >> "$GITHUB_OUTPUT"
+
+      # GitHub Secrets에 넣은 API 키를 AWS Secrets Manager로 옮긴다 (넣은 키만, 값은 로그에 노출되지 않음)
+      - name: Sync API keys
+        env:
+          SECRET_ARN: ${{ steps.out.outputs.secret }}
+          KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
+          KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
+        run: |
+          current=$(aws secretsmanager get-secret-value --secret-id "$SECRET_ARN" --query SecretString --output text)
+          updated=$(CURRENT="$current" python3 - <<'PY'
+          import json, os
+          data = json.loads(os.environ["CURRENT"] or "{}")
+          changed = []
+          for k in ("KIS_APP_KEY", "KIS_APP_SECRET", "ANTHROPIC_API_KEY", "DATA_GO_KR_KEY"):
+              v = os.environ.get(k, "").strip()
+              if v and data.get(k) != v:
+                  data[k] = v
+                  changed.append(k)
+          print(json.dumps({"secret": json.dumps(data), "changed": changed}))
+          PY
+          )
+          changed=$(echo "$updated" | python3 -c "import json,sys; print(','.join(json.load(sys.stdin)['changed']))")
+          if [ -z "$changed" ]; then echo "변경된 API 키 없음"; exit 0; fi
+          echo "$updated" | python3 -c "import json,sys; print(json.load(sys.stdin)['secret'])" > /tmp/secret.json
+          aws secretsmanager put-secret-value --secret-id "$SECRET_ARN" --secret-string file:///tmp/secret.json >/dev/null
+          rm -f /tmp/secret.json
+          echo "API 키 갱신: $changed"
+          echo "API 키 갱신: $changed" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish frontend
         run: |

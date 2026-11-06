@@ -73,8 +73,9 @@ EventBridge Scheduler (서울 시간)
 1. **메일 2통 확인**
    - **Amazon SES 확인 메일**: 링크를 눌러야 데일리 전략 메일이 발송됩니다.
    - **임시 비밀번호 메일 (Cognito)**: 첫 로그인 때 새 비밀번호를 설정합니다.
-2. **API 키 입력**
-   - AWS 콘솔 → **Secrets Manager**에서 `AppSecret...`으로 시작하는 Secret을 엽니다.
+2. **API 키 입력** — 둘 중 편한 방법
+   - **GitHub에서 (권장)**: 저장소 Settings → Secrets and variables → Actions → *Repository secrets*에 아래 이름 그대로 추가한 뒤 Deploy를 실행하면 배포 중에 AWS로 자동 입력됩니다(넣은 키만 갱신).
+   - **AWS 콘솔에서**:    - AWS 콘솔 → **Secrets Manager**에서 `AppSecret...`으로 시작하는 Secret을 엽니다.
    - **보안 암호 값 검색 → 편집**에서 `CHANGE_ME` 4개를 실제 값으로 바꿉니다.
 
 | 키 | 발급처 |
