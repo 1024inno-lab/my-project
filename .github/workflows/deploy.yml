@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  AWS_REGION: ap-northeast-2
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
   STACK_NAME: invest-desk
 
 jobs:
