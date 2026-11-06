@@ -47,7 +47,11 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Federated: !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+              # 공급자를 먼저 만든 뒤 역할을 만들도록 직접 참조한다 (없는 공급자를 참조하면 역할 생성이 실패함)
+              Federated: !If
+                - MakeProvider
+                - !Ref GitHubOidc
+                - !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
             Action: sts:AssumeRoleWithWebIdentity
             Condition:
               StringEquals:
