@@ -33,11 +33,19 @@
     if (C.demo) return window.DEMO.api(path, opts);
     const token = await Auth.token();
     if (!token) { Auth.login(); throw new Error("로그인이 필요합니다"); }
-    const res = await fetch(C.apiUrl + path, {
-      method: opts.method || "GET",
-      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
-      body: opts.body ? JSON.stringify(opts.body) : undefined,
-    });
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 35000);
+    let res;
+    try {
+      res = await fetch(C.apiUrl + path, {
+        method: opts.method || "GET",
+        headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+        signal: ctrl.signal,
+      });
+    } catch (e) {
+      throw new Error(e.name === "AbortError" ? "서버 응답이 없습니다 (" + path + ")" : "서버에 연결하지 못했습니다 (" + path + "): " + e.message);
+    } finally { clearTimeout(timer); }
     const data = await res.json().catch(() => ({}));
     if (res.status === 401) { Auth.login(); throw new Error("로그인이 만료되었습니다"); }
     if (!res.ok) { const e = new Error(data.error || "요청 실패 (" + res.status + ")"); e.status = res.status; throw e; }

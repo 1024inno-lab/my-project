@@ -175,6 +175,8 @@ ROUTES = [
 
 def handler(event, _context):
     method = event.get("requestContext", {}).get("http", {}).get("method", "GET")
+    if method == "OPTIONS":  # CORS 사전 요청 — 헤더는 API Gateway가 붙인다
+        return {"statusCode": 204, "headers": {}, "body": ""}
     path = event.get("rawPath", "/")
     stage = event.get("requestContext", {}).get("stage", "$default")
     if stage != "$default" and path.startswith(f"/{stage}"):

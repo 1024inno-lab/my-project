@@ -141,6 +141,14 @@ Resources:
         Api:
           Type: HttpApi
           Properties: { ApiId: !Ref HttpApi, Path: "/{proxy+}", Method: ANY }
+        # 브라우저 CORS 사전 요청(OPTIONS)은 토큰 없이 오므로 인증 없이 통과시킨다
+        Preflight:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: "/{proxy+}"
+            Method: OPTIONS
+            Auth: { Authorizer: NONE }
 
   # ---------------- 에이전트 (백엔드 전용) ----------------
   DailyAgentFunction:
