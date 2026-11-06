@@ -1,9 +1,15 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  투자 데스크 — GitHub Actions가 액세스 키 없이(OIDC) 배포할 수 있게 하는 1회용 권한 설정.
-  AWS 콘솔 > CloudFormation > 스택 생성에서 이 파일을 업로드해 실행하세요.
+  투자 데스크 — GitHub Actions 배포 권한 1회용 설정.
+  AuthMode=oidc(권장): 액세스 키 없이 GitHub OIDC 역할로 배포.
+  AuthMode=accesskey: OIDC 공급자 생성이 막힌 계정용. 배포 전용 IAM 사용자를 만들고, 액세스 키는 콘솔에서 발급.
 
 Parameters:
+  AuthMode:
+    Type: String
+    Default: oidc
+    AllowedValues: [oidc, accesskey]
+    Description: "oidc = 권장 / accesskey = OIDC 공급자 생성이 거부될 때"
   GitHubOwner:
     Type: String
     Default: 1024inno-lab
@@ -20,12 +26,44 @@ Parameters:
     Type: String
     Default: "true"
     AllowedValues: ["true", "false"]
-    Description: 이 계정에 GitHub OIDC 공급자가 이미 있으면 false
+    Description: (oidc 모드) 이 계정에 GitHub OIDC 공급자가 이미 있으면 false
 
 Conditions:
-  MakeProvider: !Equals [!Ref CreateOidcProvider, "true"]
+  UseOidc: !Equals [!Ref AuthMode, oidc]
+  UseKey: !Equals [!Ref AuthMode, accesskey]
+  MakeProvider: !And [!Condition UseOidc, !Equals [!Ref CreateOidcProvider, "true"]]
 
 Resources:
+  # 앱 스택이 만드는 Lambda·스케줄러 역할만 관리하도록 IAM 권한을 좁힌 정책 (두 모드 공통)
+  ManageAppRolesPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "${AppStackName}-manage-app-roles"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - iam:CreateRole
+              - iam:DeleteRole
+              - iam:GetRole
+              - iam:PassRole
+              - iam:TagRole
+              - iam:UntagRole
+              - iam:UpdateRole
+              - iam:AttachRolePolicy
+              - iam:DetachRolePolicy
+              - iam:PutRolePolicy
+              - iam:DeleteRolePolicy
+              - iam:GetRolePolicy
+              - iam:ListRolePolicies
+              - iam:ListAttachedRolePolicies
+            Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppStackName}-*"
+          - Effect: Allow
+            Action: iam:CreateServiceLinkedRole
+            Resource: "*"
+
+  # ---------- oidc 모드 ----------
   GitHubOidc:
     Type: AWS::IAM::OIDCProvider
     Condition: MakeProvider
@@ -38,6 +76,7 @@ Resources:
 
   DeployRole:
     Type: AWS::IAM::Role
+    Condition: UseOidc
     Properties:
       RoleName: !Sub "${AppStackName}-github-deploy"
       Description: GitHub Actions deploy role (main branch only)
@@ -47,7 +86,7 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              # 공급자를 먼저 만든 뒤 역할을 만들도록 직접 참조한다 (없는 공급자를 참조하면 역할 생성이 실패함)
+              # 공급자를 먼저 만든 뒤 역할을 만들도록 직접 참조
               Federated: !If
                 - MakeProvider
                 - !Ref GitHubOidc
@@ -58,35 +97,25 @@ Resources:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
                 token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubOwner}/${GitHubRepo}:ref:refs/heads/main"
       ManagedPolicyArns:
-        # IAM을 제외한 서비스 권한. IAM은 아래 인라인 정책으로 앱 스택 역할에만 허용.
         - arn:aws:iam::aws:policy/PowerUserAccess
-      Policies:
-        - PolicyName: manage-app-roles
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - iam:CreateRole
-                  - iam:DeleteRole
-                  - iam:GetRole
-                  - iam:PassRole
-                  - iam:TagRole
-                  - iam:UntagRole
-                  - iam:UpdateRole
-                  - iam:AttachRolePolicy
-                  - iam:DetachRolePolicy
-                  - iam:PutRolePolicy
-                  - iam:DeleteRolePolicy
-                  - iam:GetRolePolicy
-                  - iam:ListRolePolicies
-                  - iam:ListAttachedRolePolicies
-                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppStackName}-*"
-              - Effect: Allow
-                Action: iam:CreateServiceLinkedRole
-                Resource: "*"
+        - !Ref ManageAppRolesPolicy
+
+  # ---------- accesskey 모드 ----------
+  DeployUser:
+    Type: AWS::IAM::User
+    Condition: UseKey
+    Properties:
+      UserName: !Sub "${AppStackName}-github-deployer"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/PowerUserAccess
+        - !Ref ManageAppRolesPolicy
 
 Outputs:
   DeployRoleArn:
+    Condition: UseOidc
     Description: GitHub 저장소 Settings > Variables에 AWS_DEPLOY_ROLE_ARN으로 등록
     Value: !GetAtt DeployRole.Arn
+  DeployUserName:
+    Condition: UseKey
+    Description: IAM > 사용자 > 이 사용자 > 보안 자격 증명에서 액세스 키를 만들어 GitHub Secrets에 등록
+    Value: !Ref DeployUser

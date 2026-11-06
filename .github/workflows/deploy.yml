@@ -32,7 +32,7 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
-    if: ${{ vars.AWS_DEPLOY_ROLE_ARN != '' && vars.OWNER_EMAIL != '' }}
+    if: ${{ vars.OWNER_EMAIL != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -41,9 +41,20 @@ jobs:
       - uses: aws-actions/setup-sam@v2
         with:
           use-installer: true
-      - uses: aws-actions/configure-aws-credentials@v4
+      # 권장: OIDC 역할 (Variables: AWS_DEPLOY_ROLE_ARN)
+      - name: AWS 인증 (OIDC 역할)
+        if: ${{ vars.AWS_DEPLOY_ROLE_ARN != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      # 대체: 배포 전용 IAM 사용자 액세스 키 (Secrets: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)
+      - name: AWS 인증 (액세스 키)
+        if: ${{ vars.AWS_DEPLOY_ROLE_ARN == '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Build backend
