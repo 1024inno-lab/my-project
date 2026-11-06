@@ -1,0 +1,85 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # GitHub OIDC → AWS 역할 (액세스 키 저장 없음)
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-2
+  STACK_NAME: invest-desk
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest boto3 cfn-lint -r backend/src/requirements.txt
+      - run: cd backend && pytest -q
+      - run: cfn-lint template.yaml infra/bootstrap.yaml
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: ${{ vars.AWS_DEPLOY_ROLE_ARN != '' && vars.OWNER_EMAIL != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: aws-actions/setup-sam@v2
+        with:
+          use-installer: true
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Build backend
+        run: sam build
+
+      - name: Deploy stack
+        run: |
+          sam deploy \
+            --stack-name "$STACK_NAME" \
+            --region "$AWS_REGION" \
+            --resolve-s3 \
+            --capabilities CAPABILITY_IAM \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides "OwnerEmail=${{ vars.OWNER_EMAIL }}" ${{ vars.CLAUDE_MODEL && format('ClaudeModel={0}', vars.CLAUDE_MODEL) || '' }}
+
+      - name: Read stack outputs
+        id: out
+        run: |
+          get() { aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
+          echo "api=$(get ApiUrl)" >> "$GITHUB_OUTPUT"
+          echo "domain=$(get CognitoDomain)" >> "$GITHUB_OUTPUT"
+          echo "client=$(get UserPoolClientId)" >> "$GITHUB_OUTPUT"
+          echo "bucket=$(get SiteBucketName)" >> "$GITHUB_OUTPUT"
+          echo "dist=$(get DistributionId)" >> "$GITHUB_OUTPUT"
+          echo "site=$(get SiteUrl)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish frontend
+        run: |
+          cat > frontend/config.js <<EOF
+          window.APP_CONFIG = { apiUrl: "${{ steps.out.outputs.api }}", cognitoDomain: "${{ steps.out.outputs.domain }}", clientId: "${{ steps.out.outputs.client }}", demo: false };
+          EOF
+          aws s3 sync frontend "s3://${{ steps.out.outputs.bucket }}" --delete --exclude "config.example.js" --cache-control "no-cache"
+          aws cloudfront create-invalidation --distribution-id "${{ steps.out.outputs.dist }}" --paths "/*" >/dev/null
+
+      - name: Summary
+        run: |
+          echo "### 배포 완료" >> "$GITHUB_STEP_SUMMARY"
+          echo "접속 주소: ${{ steps.out.outputs.site }}" >> "$GITHUB_STEP_SUMMARY"

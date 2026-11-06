@@ -1,0 +1,17 @@
+# secrets / local config
+.env
+.env.*
+frontend/config.js
+samconfig.toml
+
+# build
+.aws-sam/
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/

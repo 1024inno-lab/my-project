@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install pytest boto3 cfn-lint -r backend/src/requirements.txt
+      - name: Unit tests
+        run: cd backend && pytest -q
+      - name: Lint CloudFormation
+        run: cfn-lint template.yaml infra/bootstrap.yaml
+      - name: Check frontend syntax
+        run: for f in frontend/*.js; do node --check "$f"; done

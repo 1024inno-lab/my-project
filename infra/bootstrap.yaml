@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  투자 데스크 — GitHub Actions가 액세스 키 없이(OIDC) 배포할 수 있게 하는 1회용 권한 설정.
+  AWS 콘솔 > CloudFormation > 스택 생성에서 이 파일을 업로드해 실행하세요.
+
+Parameters:
+  GitHubOwner:
+    Type: String
+    Description: "GitHub 계정명 (예시 andrew)"
+  GitHubRepo:
+    Type: String
+    Default: invest-desk
+    Description: 저장소 이름
+  AppStackName:
+    Type: String
+    Default: invest-desk
+    Description: 앱 스택 이름 (deploy.yml과 같아야 함)
+  CreateOidcProvider:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: 이 계정에 GitHub OIDC 공급자가 이미 있으면 false
+
+Conditions:
+  MakeProvider: !Equals [!Ref CreateOidcProvider, "true"]
+
+Resources:
+  GitHubOidc:
+    Type: AWS::IAM::OIDCProvider
+    Condition: MakeProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AppStackName}-github-deploy"
+      Description: GitHub Actions deploy role (main branch only)
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubOwner}/${GitHubRepo}:ref:refs/heads/main"
+      ManagedPolicyArns:
+        # IAM을 제외한 서비스 권한. IAM은 아래 인라인 정책으로 앱 스택 역할에만 허용.
+        - arn:aws:iam::aws:policy/PowerUserAccess
+      Policies:
+        - PolicyName: manage-app-roles
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:GetRole
+                  - iam:PassRole
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:UpdateRole
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/${AppStackName}-*"
+              - Effect: Allow
+                Action: iam:CreateServiceLinkedRole
+                Resource: "*"
+
+Outputs:
+  DeployRoleArn:
+    Description: GitHub 저장소 Settings > Variables에 AWS_DEPLOY_ROLE_ARN으로 등록
+    Value: !GetAtt DeployRole.Arn
