@@ -53,11 +53,19 @@ def update_holding(_q, body, hid):
         return 404, {"error": "보유 항목을 찾을 수 없습니다."}
     action = body.pop("action", "fix")
     if cur.get("category") == "stock" and action in ("buy", "sell", "close"):
-        cur, trade = apply_trade(cur, action, _num(body.get("qty")), _num(body.get("price")))
-        db.put("TRADE", f"{body.get('date') or _today()}#{hid}#{uuid.uuid4().hex[:4]}", {**trade, "code": cur["code"], "name": cur.get("name")})
-        if cur["qty"] <= 0:
-            db.delete("HOLDING", hid)
-            return 200, {"deleted": True, "trade": trade}
+        # 거래 모드에서도 종목명·메모 변경은 함께 저장
+        for k in ("name", "memo"):
+            if body.get(k) not in (None, ""):
+                cur[k] = body[k]
+        qty, price = _num(body.get("qty")), _num(body.get("price"))
+        if action == "close" or (qty > 0 and price > 0):
+            cur, trade = apply_trade(cur, action, qty, price)
+            db.put("TRADE", f"{body.get('date') or _today()}#{hid}#{uuid.uuid4().hex[:4]}", {**trade, "code": cur["code"], "name": cur.get("name")})
+            if cur["qty"] <= 0:
+                db.delete("HOLDING", hid)
+                return 200, {"deleted": True, "trade": trade}
+        elif qty > 0 or price > 0:
+            return 400, {"error": "거래를 기록하려면 수량과 단가를 모두 입력해 주세요."}
     else:
         cur.update(_clean(body))
     cur["updatedAt"] = _today()

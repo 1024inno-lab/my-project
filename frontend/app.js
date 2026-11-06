@@ -476,7 +476,7 @@
     const d = M.data;
     let body;
     if (M.tab === "stock") {
-      if (M.id && M.action !== "fix") body = { action: M.action, qty: n(d.tqty), price: n(d.tprice), date: d.tdate };
+      if (M.id && M.action !== "fix") body = { action: M.action, qty: n(d.tqty), price: n(d.tprice), date: d.tdate, name: d.name, memo: d.memo };
       else body = { category: "stock", market: d.market, excd: d.market === "US" ? d.excd : undefined, code: (d.code || "").toUpperCase(), name: d.name, qty: n(d.qty), avg: n(d.avg), memo: d.memo };
       if (!M.id && !body.code) return toast("종목코드를 입력해 주세요.");
     } else if (M.tab === "bond") {

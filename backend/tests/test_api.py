@@ -106,3 +106,19 @@ def test_indices(monkeypatch):
     assert fx["rate"] == -0.14 and ("FHKST03030100", "FX@KRWKFTC") in calls
     code, _ = call("GET", "/indices", query={"period": "5Y"})
     assert code == 400
+
+
+def test_edit_name_in_trade_mode(monkeypatch):
+    fake = FakeDB()
+    for name in ("put", "get", "delete", "query"):
+        monkeypatch.setattr(db, name, getattr(fake, name))
+    _, h = call("POST", "/holdings", {"category": "stock", "market": "KR", "code": "005930", "name": "", "qty": 10, "avg": 70000})
+    # 매수 추가 모드에서 수량·단가 없이 이름만 바꿔도 저장된다
+    code, upd = call("PUT", f"/holdings/{h['id']}", {"action": "buy", "name": "삼성전자"})
+    assert code == 200 and upd["name"] == "삼성전자" and upd["qty"] == 10
+    # 거래와 이름 변경을 함께
+    code, upd = call("PUT", f"/holdings/{h['id']}", {"action": "buy", "qty": 10, "price": 80000, "name": "삼성전자(보통주)"})
+    assert upd["qty"] == 20 and upd["avg"] == 75000 and upd["name"] == "삼성전자(보통주)"
+    # 수량만 있고 단가가 없으면 거래 거부
+    code, body = call("PUT", f"/holdings/{h['id']}", {"action": "sell", "qty": 5})
+    assert code == 400
