@@ -162,3 +162,25 @@ cd frontend && python3 -m http.server 8765         # http://localhost:8765
   - KIS가 TR ID나 응답 필드를 바꾸면 `backend/src/common/kis.py`만 고치면 됩니다.
 - **채권 API**: 응답 필드명이 명세와 다를 수 있습니다. 후보 키를 여러 개 두었으니 첫 조회가 비어 있으면 `common/market.py`의 `BOND_FIELDS`를 확인해 주세요.
 - **공공데이터 라이선스**: 공공누리 제2유형(상업적 이용 금지)입니다. 개인용으로는 문제없지만 상업 서비스로 확장하려면 예탁결제원과 별도 계약이 필요합니다.
+
+---
+
+## 일시 중지 · 재개 · 완전 삭제
+
+**현재 상태: 일시 중지.** 평일 07:00 복기와 07:30 전략 자동 실행이 꺼져 있습니다. 사이트, 로그인, 보유 종목 데이터, 실시간 시세 조회는 그대로 쓸 수 있습니다.
+
+| 하고 싶은 것 | 방법 |
+|---|---|
+| 자동 실행 다시 켜기 | 저장소 Settings → Secrets and variables → Actions → **Variables**에 `AGENT_SCHEDULE` = `ENABLED` 추가 → 배포 |
+| 다시 일시 중지 | `AGENT_SCHEDULE` 변수를 삭제하거나 `DISABLED`로 바꾼 뒤 → 배포 |
+| 비용 0으로 완전 삭제 | 아래 순서 (데이터·키 보관함도 지워지며 되돌릴 수 없음) |
+
+**완전 삭제 순서** (AWS 콘솔, 시드니 리전)
+1. S3: 스택이 만든 사이트 버킷(`invest-desk-sitebucket-…`)을 열고 **비우기**를 실행합니다. 비어 있지 않으면 스택 삭제가 실패합니다.
+2. CloudFormation: `invest-desk` 스택을 **삭제**합니다. CloudFront 삭제 때문에 15분 이상 걸릴 수 있습니다.
+3. 삭제 보호를 걸어 둔 두 리소스는 따로 지웁니다.
+   - DynamoDB 테이블(`invest-desk-Table-…`): 보유 종목 데이터
+   - Secrets Manager `AppSecret-…`: 월 $0.40가 청구되는 항목입니다. 삭제 대기 기간을 7일로 정하면 됩니다.
+4. (선택) `aws-sam-cli-managed-default` 스택과 버킷, `invest-desk-bootstrap` 스택도 삭제할 수 있습니다. 배포 권한 스택은 비용이 없습니다.
+
+코드는 GitHub에 그대로 남아 있습니다. 나중에 다시 배포하면 새로 만들어지며, 보유 종목은 다시 입력해야 합니다.

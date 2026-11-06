@@ -72,7 +72,7 @@ jobs:
             --capabilities CAPABILITY_IAM \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
-            --parameter-overrides "OwnerEmail=${{ vars.OWNER_EMAIL }}" ${{ vars.CLAUDE_MODEL && format('ClaudeModel={0}', vars.CLAUDE_MODEL) || '' }}
+            --parameter-overrides "OwnerEmail=${{ vars.OWNER_EMAIL }}" "AgentSchedule=${{ vars.AGENT_SCHEDULE || 'DISABLED' }}" ${{ vars.CLAUDE_MODEL && format('ClaudeModel={0}', vars.CLAUDE_MODEL) || '' }}
 
       - name: Read stack outputs
         id: out

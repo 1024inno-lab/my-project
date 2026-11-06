@@ -12,6 +12,11 @@ Parameters:
     Type: String
     Default: claude-sonnet-5-5
     Description: 전략 생성에 쓸 Claude 모델 ID
+  AgentSchedule:
+    Type: String
+    Default: DISABLED
+    AllowedValues: [ENABLED, DISABLED]
+    Description: 평일 07:00 복기 / 07:30 전략 자동 실행 (DISABLED = 일시 중지)
   WebSearchTool:
     Type: String
     Default: web_search_20250305
@@ -169,6 +174,7 @@ Resources:
         Weekday0730:
           Type: ScheduleV2
           Properties:
+            State: !Ref AgentSchedule
             ScheduleExpression: "cron(30 7 ? * MON-FRI *)"
             ScheduleExpressionTimezone: Asia/Seoul
             RetryPolicy: { MaximumRetryAttempts: 1 }
@@ -186,6 +192,7 @@ Resources:
         Weekday0700:
           Type: ScheduleV2
           Properties:
+            State: !Ref AgentSchedule
             ScheduleExpression: "cron(0 7 ? * MON-FRI *)"
             ScheduleExpressionTimezone: Asia/Seoul
             RetryPolicy: { MaximumRetryAttempts: 1 }
