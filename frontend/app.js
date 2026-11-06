@@ -212,7 +212,7 @@
         ${stocks.length ? `<div class="table-wrap"><table class="t" style="min-width:980px"><thead><tr>${sortHeads("stock")}<th><span class="sr-only">수정</span></th></tr></thead><tbody>
           ${stocks.map((r) => { const sc = scenarioFor(r); const cur = r.market === "US" ? "USD" : "KRW"; return `<tr>
             <td class="name"><b>${esc(r.name || r.code)}</b><span>${esc(r.code)} · ${r.market === "US" ? esc(r.excd || "NAS") : "국내"}</span></td>
-            <td class="r mono">${krw(r.qty)}</td><td class="r mono">${price(r.avg, cur)}</td>
+            <td class="r mono">${krw(r.qty)}</td>
             <td class="r"><b class="mono">${price(r.price, cur)}</b><span class="src ${r.live ? "live" : ""}">${r.live ? "● 실시간" : "직전 값"}</span></td>
             <td class="r mono ${cls(r.rate)}">${pct(r.rate)}</td>
             <td class="r"><b class="mono">${krw(r.valueKRW)}</b>${r.market === "US" ? `<span class="src mono">$${((+r.price || 0) * (+r.qty || 0)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>` : ""}</td>
@@ -268,7 +268,6 @@
     stock: [
       ["name", "종목", "", "text", (r) => r.name || r.code],
       ["qty", "수량", "r", "num", (r) => +r.qty],
-      ["avg", "평균단가", "r", "num", (r, fx) => (+r.avg || 0) * (isUSD(r) ? fx : 1)],
       ["price", "현재가", "r", "num", (r, fx) => (+r.price || 0) * (isUSD(r) ? fx : 1)],
       ["rate", "등락률", "r", "num", (r) => num(r.rate)],
       ["value", "평가금액", "r", "num", (r) => r.valueKRW],
