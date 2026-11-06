@@ -126,7 +126,7 @@ def send_mail(today: str, strategy: dict) -> None:
     rows = "".join(f"<tr><td>{x['name']}</td><td><b>{x['verdict']}</b></td><td>{x.get('why', '')}</td></tr>" for x in s.get("scenarios", []))
     todos = "".join(f"<li>[{t.get('priority')}] {t.get('title')}</li>" for t in p.get("todos", []))
     html = f"""<div style="font-family:sans-serif;max-width:680px">
-<h2>{today} 투자 데스크 데일리 전략</h2>
+<h2>{today} Invest Desk 데일리 전략</h2>
 <h3>종합 포트폴리오: {p.get('direction', '').replace(chr(10), ' ')}</h3><ul>{todos}</ul>
 <h3>보유 주식 대응 ({s.get('tone', {}).get('label', '')})</h3>
 <table border="1" cellpadding="6" style="border-collapse:collapse">{rows}</table>
@@ -134,7 +134,7 @@ def send_mail(today: str, strategy: dict) -> None:
 <p style="color:#666;font-size:12px">자동 생성된 참고 자료이며 투자 판단과 책임은 본인에게 있습니다.</p></div>"""
     boto3.client("ses").send_email(
         Source=config.SENDER_EMAIL, Destination={"ToAddresses": [config.OWNER_EMAIL]},
-        Message={"Subject": {"Data": f"[투자 데스크] {today} 데일리 전략", "Charset": "UTF-8"},
+        Message={"Subject": {"Data": f"[Invest Desk] {today} 데일리 전략", "Charset": "UTF-8"},
                  "Body": {"Html": {"Data": html, "Charset": "UTF-8"}}})
 
 

@@ -1,4 +1,4 @@
-/* 투자 데스크 — 단일 페이지 앱 (빌드 도구 없음) */
+/* Invest Desk — 단일 페이지 앱 (빌드 도구 없음) */
 (function () {
   const C = window.APP_CONFIG || {};
   const $app = document.getElementById("app");
@@ -158,7 +158,7 @@
   function shell(inner) {
     const time = S.quoteAt ? new Date(S.quoteAt).toLocaleTimeString("en-GB", { hour12: false, timeZone: "Asia/Seoul" }) : "—";
     return `<header class="topbar"><div class="inner">
-      <div class="brand">${icon.logo}<span>투자 데스크</span></div>
+      <div class="brand">${icon.logo}<span>Invest Desk</span></div>
       <nav class="nav" aria-label="주 메뉴">
         <a href="#/dashboard" class="${S.view === "dashboard" ? "active" : ""}">대시보드</a>
         <a href="#/strategy" class="${S.view === "strategy" ? "active" : ""}">주식 대응 전략</a>
@@ -566,7 +566,7 @@
       if (!C.demo) {
         await Auth.handleCallback();
         if (!(await Auth.token())) {
-          $app.innerHTML = '<div class="login"><div class="card"><div style="display:flex;justify-content:center"><span style="background:var(--accent);border-radius:12px;padding:10px;display:inline-flex">' + icon.logo + '</span></div><h1 style="margin:0;font-size:22px">투자 데스크</h1><p class="muted" style="margin:0">본인 계정으로 로그인해 주세요.</p><button class="btn primary" style="justify-content:center" id="login">로그인</button></div></div>';
+          $app.innerHTML = '<div class="login"><div class="card"><div style="display:flex;justify-content:center"><span style="background:var(--accent);border-radius:12px;padding:10px;display:inline-flex">' + icon.logo + '</span></div><h1 style="margin:0;font-size:22px">Invest Desk</h1><p class="muted" style="margin:0">본인 계정으로 로그인해 주세요.</p><button class="btn primary" style="justify-content:center" id="login">로그인</button></div></div>';
           document.getElementById("login").onclick = () => Auth.login();
           return;
         }
