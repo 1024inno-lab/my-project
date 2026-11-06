@@ -146,6 +146,31 @@ def lookup_bond(q, _b):
     return {"isin": isin, **info}
 
 
+_index_cache: dict = {}
+
+
+def indices(q, _b):
+    """주요 지수 현재값 + 기간 차트. 60초 캐시(지수 5개 × 1회 호출)."""
+    import time
+
+    period = (q.get("period") or "3M").upper()
+    if period not in kis.PERIODS:
+        return 400, {"error": "period는 1M, 3M, 1Y 중 하나입니다."}
+    hit = _index_cache.get(period)
+    if hit and time.time() - hit[0] < 60:
+        return hit[1]
+    items = []
+    for spec in kis.INDICES:
+        try:
+            items.append(kis.index_chart(spec, period))
+        except kis.KISError as e:
+            items.append({"key": spec["key"], "name": spec["name"], "error": str(e)[:160], "points": []})
+    result = {"period": period, "items": items, "at": datetime.now(KST).isoformat()}
+    if any(i.get("points") for i in items):
+        _index_cache[period] = (time.time(), result)
+    return result
+
+
 # ---------- 전략 (결과만) ----------
 def get_strategy(q, _b):
     date = q.get("date")
@@ -179,6 +204,7 @@ ROUTES = [
     ("PUT", r"/holdings/(?P<hid>[\w-]+)", update_holding),
     ("DELETE", r"/holdings/(?P<hid>[\w-]+)", delete_holding),
     ("GET", r"/quotes", quotes),
+    ("GET", r"/indices", indices),
     ("GET", r"/lookup/stock", lookup_stock),
     ("GET", r"/lookup/bond", lookup_bond),
     ("GET", r"/strategy", get_strategy),

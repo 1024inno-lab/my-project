@@ -151,3 +151,57 @@ def kr_investor_flow(code: str) -> list[dict]:
     rows = [{"date": r.get("stck_bsop_date"), "foreign": _f(r.get("frgn_ntby_qty")),
              "institution": _f(r.get("orgn_ntby_qty"))} for r in out if r.get("stck_bsop_date")]
     return sorted(rows, key=lambda r: r["date"])
+
+
+# ---------- 주요 지수 (대시보드 차트) ----------
+# 국내: 국내주식업종기간별시세 FHKUP03500100 (업종코드 0001 코스피, 1001 코스닥)
+# 해외: 해외주식 종목·지수·환율 기간별시세 FHKST03030100 (N 해외지수, X 환율)
+INDICES = [
+    {"key": "KOSPI", "name": "코스피", "kind": "kr", "code": "0001"},
+    {"key": "KOSDAQ", "name": "코스닥", "kind": "kr", "code": "1001"},
+    {"key": "NASDAQ", "name": "나스닥", "kind": "N", "code": "COMP"},
+    {"key": "SPX", "name": "S&P 500", "kind": "N", "code": "SPX"},
+    {"key": "USDKRW", "name": "원/달러", "kind": "X", "code": "FX@KRW", "alt": "FX@KRWKFTC"},
+]
+PERIODS = {"1M": (31, "D"), "3M": (95, "D"), "1Y": (370, "W")}
+
+
+def _series(rows: list, value_key: str) -> list[dict]:
+    pts = [{"d": r.get("stck_bsop_date"), "v": _f(r.get(value_key))} for r in rows or []]
+    return sorted([p for p in pts if p["d"] and p["v"]], key=lambda p: p["d"])
+
+
+def index_chart(spec: dict, period: str = "3M") -> dict:
+    days, unit = PERIODS.get(period, PERIODS["3M"])
+    end = datetime.now(KST)
+    d1, d2 = (end - timedelta(days=days)).strftime("%Y%m%d"), end.strftime("%Y%m%d")
+    if spec["kind"] == "kr":
+        body = _get("/uapi/domestic-stock/v1/quotations/inquire-daily-indexchartprice", "FHKUP03500100", {
+            "FID_COND_MRKT_DIV_CODE": "U", "FID_INPUT_ISCD": spec["code"],
+            "FID_INPUT_DATE_1": d1, "FID_INPUT_DATE_2": d2, "FID_PERIOD_DIV_CODE": unit})
+        o1 = body.get("output1") or {}
+        cur = {"value": _f(o1.get("bstp_nmix_prpr")), "change": _f(o1.get("bstp_nmix_prdy_vrss")),
+               "rate": _f(o1.get("bstp_nmix_prdy_ctrt"))}
+        pts = _series(body.get("output2"), "bstp_nmix_prpr")
+    else:
+        body = None
+        for code in (spec["code"], spec.get("alt")):
+            if not code:
+                continue
+            try:
+                body = _get("/uapi/overseas-price/v1/quotations/inquire-daily-chartprice", "FHKST03030100", {
+                    "FID_COND_MRKT_DIV_CODE": spec["kind"], "FID_INPUT_ISCD": code,
+                    "FID_INPUT_DATE_1": d1, "FID_INPUT_DATE_2": d2, "FID_PERIOD_DIV_CODE": unit})
+                if body.get("output2"):
+                    break
+            except KISError:
+                body = None
+        if not body:
+            raise KISError(f"{spec['name']} 시세를 받지 못했습니다")
+        o1 = body.get("output1") or {}
+        cur = {"value": _f(o1.get("ovrs_nmix_prpr")), "change": _f(o1.get("ovrs_nmix_prdy_vrss")),
+               "rate": _f(o1.get("prdy_ctrt"))}
+        pts = _series(body.get("output2"), "ovrs_nmix_prpr")
+    if not cur["value"] and pts:
+        cur["value"] = pts[-1]["v"]
+    return {"key": spec["key"], "name": spec["name"], **cur, "points": pts}

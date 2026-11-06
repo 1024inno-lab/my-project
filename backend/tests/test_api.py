@@ -81,3 +81,28 @@ def test_lookup_missing_key_message(monkeypatch):
     code, body = call("GET", "/lookup/stock", query={"market": "KR", "code": "005930"})
     assert code == 503 and "KIS_APP_KEY" in body["error"]
     config._cache.update(values=None, at=0)
+
+
+def test_indices(monkeypatch):
+    calls = []
+
+    def fake_get(path, tr, params):
+        calls.append((tr, params["FID_INPUT_ISCD"]))
+        if tr == "FHKUP03500100":
+            return {"output1": {"bstp_nmix_prpr": "2600.5", "bstp_nmix_prdy_vrss": "10.1", "bstp_nmix_prdy_ctrt": "0.39"},
+                    "output2": [{"stck_bsop_date": "20261105", "bstp_nmix_prpr": "2590.4"}, {"stck_bsop_date": "20261104", "bstp_nmix_prpr": "2580"}]}
+        if params["FID_INPUT_ISCD"] == "FX@KRW":
+            return {"output1": {}, "output2": []}  # 대체 코드로 재시도되는지 확인
+        return {"output1": {"ovrs_nmix_prpr": "1400.2", "ovrs_nmix_prdy_vrss": "-2", "prdy_ctrt": "-0.14"},
+                "output2": [{"stck_bsop_date": "20261105", "ovrs_nmix_prpr": "1402.2"}]}
+
+    monkeypatch.setattr(api.kis, "_get", fake_get)
+    api._index_cache.clear()
+    code, body = call("GET", "/indices", query={"period": "3M"})
+    assert code == 200 and len(body["items"]) == 5
+    kospi = body["items"][0]
+    assert kospi["value"] == 2600.5 and kospi["points"][0]["d"] == "20261104"
+    fx = [i for i in body["items"] if i["key"] == "USDKRW"][0]
+    assert fx["rate"] == -0.14 and ("FHKST03030100", "FX@KRWKFTC") in calls
+    code, _ = call("GET", "/indices", query={"period": "5Y"})
+    assert code == 400

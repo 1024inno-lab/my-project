@@ -2,8 +2,8 @@
 (function () {
   const C = window.APP_CONFIG || {};
   const $app = document.getElementById("app");
-  const S = { portfolio: null, strategy: null, dates: [], quotes: {}, fx: 0, quoteAt: null, live: false, view: "dashboard", strategyDate: null, done: {} };
-  let pollTimer = null;
+  const S = { indices: null, indexPeriod: "3M", indexErr: null, portfolio: null, strategy: null, dates: [], quotes: {}, fx: 0, quoteAt: null, live: false, view: "dashboard", strategyDate: null, done: {} };
+  let pollTimer = null, indexTimer = null;
 
   // ---------- 유틸 ----------
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -108,6 +108,43 @@
     pollTimer = setTimeout(pollQuotes, marketOpen() ? 10000 : 60000);
   }
 
+  // ---------- 주요 지수 ----------
+  async function loadIndices(render_ = true) {
+    try { S.indices = await api("/indices?period=" + S.indexPeriod); S.indexErr = null; }
+    catch (e) { S.indexErr = e.message; }
+    if (render_ && S.view === "dashboard" && !document.querySelector(".overlay")) render();
+    clearTimeout(indexTimer);
+    indexTimer = setTimeout(() => loadIndices(true), marketOpen() ? 60000 : 300000);
+  }
+  function sparkline(pts, i) {
+    if (!pts || pts.length < 2) return '<div class="idx-empty">차트 데이터 없음</div>';
+    const W = 240, H = 72, P = 4;
+    const vs = pts.map((p) => p.v), lo = Math.min(...vs), hi = Math.max(...vs), span = hi - lo || 1;
+    const xy = pts.map((p, k) => [P + (k / (pts.length - 1)) * (W - 2 * P), P + (1 - (p.v - lo) / span) * (H - 2 * P)]);
+    const line = xy.map(([x, y], k) => (k ? "L" : "M") + x.toFixed(1) + " " + y.toFixed(1)).join(" ");
+    const area = line + ` L${xy[xy.length - 1][0].toFixed(1)} ${H} L${xy[0][0].toFixed(1)} ${H} Z`;
+    const color = vs[vs.length - 1] >= vs[0] ? "var(--up)" : "var(--down)";
+    return `<svg class="idx-chart" data-idx="${i}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(pts[0].d)}부터 ${esc(pts[pts.length - 1].d)}까지 추이, 최저 ${lo.toLocaleString("ko-KR")} 최고 ${hi.toLocaleString("ko-KR")}">
+      <path d="${area}" fill="${color}" opacity="0.08"/><path d="${line}" fill="none" stroke="${color}" stroke-width="1.8" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+      <line class="idx-cursor" x1="0" x2="0" y1="0" y2="${H}" stroke="var(--muted)" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0"/></svg>`;
+  }
+  const fmtIdx = (key, v) => (num(v) === null ? "—" : (+v).toLocaleString("ko-KR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  const fmtDate = (d) => (d && d.length === 8 ? `${d.slice(2, 4)}.${d.slice(4, 6)}.${d.slice(6)}` : d || "");
+  function indexSection() {
+    const items = (S.indices && S.indices.items) || [];
+    const periods = [["1M", "1개월"], ["3M", "3개월"], ["1Y", "1년"]];
+    return `<section class="card" aria-labelledby="h-idx">
+      <div class="card-head"><div><h2 id="h-idx">주요 지수</h2><div class="sub">한국투자증권 시세 · 장중 1분마다 갱신${S.indices && S.indices.at ? " · " + esc(new Date(S.indices.at).toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul" })) : ""}</div></div>
+        <div class="seg-btns" role="group" aria-label="차트 기간">${periods.map(([k, t]) => `<button type="button" data-period="${k}" class="${S.indexPeriod === k ? "on" : ""}" aria-pressed="${S.indexPeriod === k}">${t}</button>`).join("")}</div></div>
+      ${S.indexErr && !items.length ? `<div class="empty">${esc(S.indexErr)}</div>` : !items.length ? '<div class="empty">불러오는 중…</div>' : `
+      <div class="idx-grid">${items.map((it, i) => `<div class="idx-card">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>${esc(it.name)}</b><span class="mono ${cls(it.rate)}" style="font-size:13px">${it.error ? "" : pct(it.rate)}</span></div>
+        <div class="mono" style="font-size:20px;font-weight:600">${it.error ? "—" : fmtIdx(it.key, it.value)}</div>
+        <div class="mono idx-hover muted" id="idx-hover-${i}" style="font-size:12px;min-height:16px">${it.error ? esc(it.error) : esc(signed(it.change, (v) => fmtIdx(it.key, v)))} ${!it.error && it.points.length ? "· " + fmtDate(it.points[0].d) + " 대비 " + pct((it.points[it.points.length - 1].v / it.points[0].v - 1) * 100, 1) : ""}</div>
+        ${sparkline(it.points, i)}</div>`).join("")}</div>`}
+    </section>`;
+  }
+
   // ---------- 데이터 로드 ----------
   async function loadPortfolio() { S.portfolio = await api("/portfolio"); S.fx = S.portfolio.fx; }
   async function loadStrategy(date) {
@@ -145,6 +182,8 @@
     const target = +set.irpAnnualTarget || 0;
     return `
     <div class="page-head"><div><p>${esc(todayKST())} · ${marketOpen() ? "장중" : "장 마감"}</p><h1>내 투자 현황</h1></div></div>
+
+    ${indexSection()}
 
     <section class="grid-auto" aria-label="전체 자산 요약">
       ${kpi("총 평가금액 (주식+채권+IRP)", "₩ " + krw(V.total), `원화 환산 · 환율 ${krw(V.fx)}원`, "")}
@@ -466,6 +505,8 @@
 
   // ---------- 이벤트 ----------
   document.addEventListener("click", async (ev) => {
+    const pb = ev.target.closest("[data-period]");
+    if (pb) { S.indexPeriod = pb.dataset.period; S.indices = null; render(); return loadIndices(true); }
     const t = ev.target.closest("[data-act],[data-tab],[data-action]");
     if (!t) return;
     if (t.dataset.tab) { readForm(); M.tab = t.dataset.tab; M.found = null; M.data = { ...M.data, category: M.tab }; return drawModal(); }
@@ -496,6 +537,18 @@
     if (ev.key === "Enter" && t.closest && t.closest("#editor") && (t.name === "code" || t.name === "isin")) { ev.preventDefault(); lookup(); }
   });
   document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && M.open) closeEditor(); });
+  // 지수 차트 위에 마우스를 올리면 그 날짜의 값 표시
+  document.addEventListener("pointermove", (ev) => {
+    const svg = ev.target.closest && ev.target.closest(".idx-chart");
+    document.querySelectorAll(".idx-chart").forEach((el) => { if (el !== svg) { const c = el.querySelector(".idx-cursor"); if (c) c.setAttribute("opacity", "0"); } });
+    if (!svg || !S.indices) return;
+    const i = +svg.dataset.idx, it = S.indices.items[i]; if (!it || !it.points.length) return;
+    const r = svg.getBoundingClientRect(), ratio = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+    const k = Math.round(ratio * (it.points.length - 1)), p = it.points[k];
+    const cur = svg.querySelector(".idx-cursor"); const x = (4 + (k / (it.points.length - 1)) * 232).toFixed(1);
+    cur.setAttribute("x1", x); cur.setAttribute("x2", x); cur.setAttribute("opacity", "0.6");
+    const h = document.getElementById("idx-hover-" + i); if (h) h.textContent = fmtDate(p.d) + " · " + fmtIdx(it.key, p.v);
+  });
 
   // ---------- 라우팅 ----------
   function render() {
@@ -520,7 +573,7 @@
       }
       $app.innerHTML = shell('<div class="empty">불러오는 중…</div>');
       await Promise.all([loadPortfolio(), loadStrategy()]);
-      render(); pollQuotes();
+      render(); pollQuotes(); loadIndices(true);
     } catch (e) {
       $app.innerHTML = shell(`<div class="card empty">데이터를 불러오지 못했습니다.<br>${esc(e.message)}</div>`);
     }

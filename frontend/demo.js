@@ -32,6 +32,11 @@
     async api(path, opts) {
       await new Promise((r) => setTimeout(r, 120));
       if (path.startsWith("/portfolio")) return { rows, fx: 1400, settings: { irpAnnualTarget: 9000000 }, contributions: [{ amount: 6000000 }] };
+      if (path.startsWith("/indices")) {
+        const mk = (base, drift, seed) => { let v = base; return Array.from({ length: 60 }, (_, k) => { v *= 1 + Math.sin(k * 0.7 + seed) * 0.006 + drift; const d = new Date(Date.UTC(2026, 7, 10) + k * 864e5); return { d: d.toISOString().slice(0, 10).replace(/-/g, ""), v: +v.toFixed(2) }; }); };
+        const it = (key, name, base, drift, seed) => { const pts = mk(base, drift, seed); const last = pts[pts.length - 1].v, prev = pts[pts.length - 2].v; return { key, name, value: last, change: +(last - prev).toFixed(2), rate: +((last / prev - 1) * 100).toFixed(2), points: pts }; };
+        return { period: "3M", at: new Date().toISOString(), items: [it("KOSPI", "코스피", 2500, 0.0012, 1), it("KOSDAQ", "코스닥", 760, -0.0008, 2), it("NASDAQ", "나스닥", 17800, 0.0015, 3), it("SPX", "S&P 500", 5600, 0.001, 4), it("USDKRW", "원/달러", 1380, 0.0003, 5)] };
+      }
       if (path.startsWith("/quotes")) return { quotes, fx: 1400, at: new Date().toISOString() };
       if (path.startsWith("/strategy/dates")) return { dates: ["2026-11-06", "2026-11-05"] };
       if (path.startsWith("/strategy")) return strategy;
