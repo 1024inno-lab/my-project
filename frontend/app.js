@@ -2,7 +2,7 @@
 (function () {
   const C = window.APP_CONFIG || {};
   const $app = document.getElementById("app");
-  const S = { indices: null, indexPeriod: "3M", indexErr: null, portfolio: null, strategy: null, dates: [], quotes: {}, fx: 0, quoteAt: null, live: false, view: "dashboard", strategyDate: null, done: {} };
+  const S = { sort: (() => { try { return JSON.parse(localStorage.getItem("table-sort") || "{}"); } catch (e) { return {}; } })(), indices: null, indexPeriod: "3M", indexErr: null, portfolio: null, strategy: null, dates: [], quotes: {}, fx: 0, quoteAt: null, live: false, view: "dashboard", strategyDate: null, done: {} };
   let pollTimer = null, indexTimer = null;
 
   // ---------- 유틸 ----------
@@ -174,8 +174,8 @@
   function viewDashboard() {
     const V = computed();
     if (!V) return '<div class="empty">불러오는 중…</div>';
-    const stocks = V.rows.filter((r) => r.category === "stock");
-    const bonds = V.rows.filter((r) => r.category === "bond");
+    const stocks = sortRows("stock", V.rows.filter((r) => r.category === "stock"), V.fx);
+    const bonds = sortRows("bond", V.rows.filter((r) => r.category === "bond"), V.fx);
     const irp = V.rows.filter((r) => r.category === "irp");
     const set = S.portfolio.settings || {};
     const contrib = (S.portfolio.contributions || []).reduce((a, c) => a + (+c.amount || 0), 0);
@@ -209,7 +209,7 @@
       <section class="card grow-3" aria-labelledby="h-stock">
         <div class="card-head"><div><h2 id="h-stock">주식</h2><div class="sub">수량·평균단가 입력 · 현재가 KIS 실시간</div></div>
           <button class="btn small" data-act="add" data-cat="stock">+ 종목 추가</button></div>
-        ${stocks.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>종목</th><th class="r">수량</th><th class="r">평균단가</th><th class="r">현재가</th><th class="r">등락률</th><th class="r">평가손익</th><th>오늘 판단</th><th></th></tr></thead><tbody>
+        ${stocks.length ? `<div class="table-wrap"><table class="t"><thead><tr>${sortHeads("stock")}<th><span class="sr-only">수정</span></th></tr></thead><tbody>
           ${stocks.map((r) => { const sc = scenarioFor(r); const cur = r.market === "US" ? "USD" : "KRW"; return `<tr>
             <td class="name"><b>${esc(r.name || r.code)}</b><span>${esc(r.code)} · ${r.market === "US" ? esc(r.excd || "NAS") : "국내"}</span></td>
             <td class="r mono">${krw(r.qty)}</td><td class="r mono">${price(r.avg, cur)}</td>
@@ -226,7 +226,7 @@
     <section id="bonds" class="card" aria-labelledby="h-bond">
       <div class="card-head"><div><h2 id="h-bond">채권</h2><div class="sub">ISIN 입력 → 금리·이자주기·만기 자동 · 평가금액은 직접 갱신</div></div>
         <button class="btn small" data-act="add" data-cat="bond">+ 채권 추가</button></div>
-      ${bonds.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>채권명</th><th>유형</th><th class="r">액면금액</th><th class="r">표면금리</th><th class="r">만기일</th><th class="r">평가금액</th><th class="r">평가손익</th><th class="r">다음 이자일</th><th></th></tr></thead><tbody>
+      ${bonds.length ? `<div class="table-wrap"><table class="t"><thead><tr>${sortHeads("bond")}<th><span class="sr-only">수정</span></th></tr></thead><tbody>
         ${bonds.map((r) => `<tr><td class="name"><b>${esc(r.name)}</b><span>${esc(r.isin || "직접 입력")} · ${esc(r.currency || "KRW")}</span></td>
           <td>${esc(r.type || "—")}</td><td class="r mono">${price(r.face, r.currency)}</td><td class="r mono">${num(r.coupon) !== null ? (+r.coupon).toFixed(2) + "%" : "—"}</td>
           <td class="r mono">${esc(r.maturity || "—")}</td><td class="r"><b class="mono">${krw(r.valueKRW)}</b><span class="src">${esc(r.valueDate ? "기준 " + r.valueDate : "")}</span></td>
@@ -261,6 +261,60 @@
         </tbody></table></div>` : emptyRow("IRP 상품", "irp")}
     </section>`;
   }
+  // ---------- 표 정렬 ----------
+  const VERDICT_ORDER = { "매수": 0, "추가매수": 0, "관망": 1, "비중축소": 2 };
+  const SORT_COLS = {
+    stock: [
+      ["name", "종목", "", "text", (r) => r.name || r.code],
+      ["qty", "수량", "r", "num", (r) => +r.qty],
+      ["avg", "평균단가", "r", "num", (r, fx) => (+r.avg || 0) * (isUSD(r) ? fx : 1)],
+      ["price", "현재가", "r", "num", (r, fx) => (+r.price || 0) * (isUSD(r) ? fx : 1)],
+      ["rate", "등락률", "r", "num", (r) => num(r.rate)],
+      ["pl", "평가손익", "r", "num", (r) => r.plKRW],
+      ["plPct", "수익률", "r", "num", (r) => r.plPct],
+      ["verdict", "오늘 판단", "", "num", (r) => { const sc = scenarioFor(r); return sc ? VERDICT_ORDER[sc.verdict] ?? 3 : null; }],
+    ],
+    bond: [
+      ["name", "채권명", "", "text", (r) => r.name],
+      ["type", "유형", "", "text", (r) => r.type],
+      ["face", "액면금액", "r", "num", (r, fx) => (+r.face || 0) * (isUSD(r) ? fx : 1)],
+      ["coupon", "표면금리", "r", "num", (r) => num(r.coupon)],
+      ["maturity", "만기일", "r", "text", (r) => r.maturity],
+      ["value", "평가금액", "r", "num", (r) => r.valueKRW],
+      ["pl", "평가손익", "r", "num", (r) => r.plKRW],
+      ["nextPay", "다음 이자일", "r", "text", (r) => r.nextPay],
+    ],
+  };
+  function sortRows(table, rows, fx) {
+    const st = S.sort[table]; if (!st) return rows;
+    const col = SORT_COLS[table].find((c) => c[0] === st.key); if (!col) return rows;
+    const get = col[4], dir = st.dir === "asc" ? 1 : -1;
+    const blank = (v) => v === null || v === undefined || v === "" || (typeof v === "number" && isNaN(v));
+    return rows.slice().sort((a, b) => {
+      const x = get(a, fx), y = get(b, fx);
+      if (blank(x) || blank(y)) return blank(x) === blank(y) ? 0 : blank(x) ? 1 : -1;  // 빈 값은 항상 아래
+      return (col[3] === "text" ? String(x).localeCompare(String(y), "ko") : x - y) * dir;
+    });
+  }
+  function sortHeads(table) {
+    const st = S.sort[table] || {};
+    return SORT_COLS[table].filter((c) => !(table === "stock" && c[0] === "plPct")).map(([key, label, align]) => {
+      // 주식 표는 '평가손익' 칸 하나에 금액과 수익률이 함께 있으므로 수익률 정렬은 평가손익 머리글 옆 버튼으로
+      const on = st.key === key, ariaSort = on ? (st.dir === "asc" ? "ascending" : "descending") : "none";
+      const arrow = (k) => st.key === k ? (st.dir === "asc" ? "▲" : "▼") : "↕";
+      const extra = table === "stock" && key === "pl" ? ` <button type="button" class="th-sort sub ${st.key === "plPct" ? "on" : ""}" data-sort="stock:plPct" aria-label="수익률로 정렬">%<span class="sort-ind" aria-hidden="true">${arrow("plPct")}</span></button>` : "";
+      return `<th class="${align}" aria-sort="${ariaSort}"><button type="button" class="th-sort ${on ? "on" : ""}" data-sort="${table}:${key}">${label}<span class="sort-ind" aria-hidden="true">${arrow(key)}</span></button>${extra}</th>`;
+    }).join("");
+  }
+  function toggleSort(table, key) {
+    const col = SORT_COLS[table].find((c) => c[0] === key); if (!col) return;
+    const st = S.sort[table];
+    if (st && st.key === key) S.sort[table] = st.dir === (col[3] === "text" ? "asc" : "desc") ? { key, dir: col[3] === "text" ? "desc" : "asc" } : null;  // 3번째 클릭은 정렬 해제
+    else S.sort[table] = { key, dir: col[3] === "text" ? "asc" : "desc" };
+    try { localStorage.setItem("table-sort", JSON.stringify(S.sort)); } catch (e) {}
+    render();
+  }
+
   const kpi = (label, value, sub, c) => `<div class="card kpi"><span class="label">${esc(label)}</span><span class="value ${c}">${esc(value)}</span><span class="sub ${c || "muted"}">${esc(sub)}</span></div>`;
   const catCard = (name, href, color, c, meta) => `<a class="cat-card" href="${href}"><span style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px"><span class="swatch" style="background:${color}"></span>${name}<span class="mono muted" style="margin-left:auto;font-size:14px">${c.weight.toFixed(0)}%</span></span>
     <span class="mono" style="font-size:22px;font-weight:600">₩ ${krw(c.value)}</span><span class="mono ${cls(c.pl)}" style="font-size:13px">${signed(c.pl)} (${pct(c.plPct, 1)})</span><span class="muted" style="font-size:12px;border-top:1px solid var(--line-2);padding-top:8px">${esc(meta)}</span></a>`;
@@ -505,6 +559,8 @@
 
   // ---------- 이벤트 ----------
   document.addEventListener("click", async (ev) => {
+    const sb = ev.target.closest("[data-sort]");
+    if (sb) { const [tb, key] = sb.dataset.sort.split(":"); return toggleSort(tb, key); }
     const pb = ev.target.closest("[data-period]");
     if (pb) { S.indexPeriod = pb.dataset.period; S.indices = null; render(); return loadIndices(true); }
     const t = ev.target.closest("[data-act],[data-tab],[data-action]");

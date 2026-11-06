@@ -6,6 +6,7 @@
     { id: "s2", category: "stock", market: "KR", code: "005930", name: "삼성전자", qty: 120, avg: 68400, valueKRW: 0, costKRW: 0 },
     { id: "s3", category: "stock", market: "US", excd: "NAS", code: "NVDA", name: "NVIDIA", qty: 25, avg: 118.4, valueKRW: 0, costKRW: 0 },
     { id: "b1", category: "bond", isin: "KR103502GXXX", name: "국고채 (샘플)", type: "국채", currency: "KRW", coupon: 3.25, months: 6, issueDate: "2024-06-10", maturity: "2034-06-10", nextPay: "2026-12-10", face: 10000000, cost: 10000000, value: 10180000, valueDate: "2026-11-01", valueKRW: 10180000, costKRW: 10000000 },
+    { id: "b2", category: "bond", isin: "KR6XXXXXXXXX", name: "회사채 (샘플)", type: "회사채", currency: "KRW", coupon: 4.1, months: 3, issueDate: "2025-03-15", maturity: "2028-03-15", nextPay: "2026-12-15", face: 5000000, cost: 5000000, value: 5035000, valueDate: "2026-11-01", valueKRW: 5035000, costKRW: 5000000 },
     { id: "i1", category: "irp", kind: "etf", code: "360750", name: "TIGER 미국S&P500", risk: "risk", qty: 520, avg: 18077, valueKRW: 0, costKRW: 0 },
     { id: "i2", category: "irp", kind: "deposit", name: "정기예금 1년 (샘플)", risk: "safe", principal: 8000000, rate: 3.1, startDate: "2026-03-01", maturity: "2027-03-01", valueKRW: 8150000, costKRW: 8000000 },
   ];
