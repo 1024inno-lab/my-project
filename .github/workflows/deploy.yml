@@ -2,11 +2,11 @@ name: Deploy
 
 # main 푸시로는 배포하지 않음. 배포는 둘 중 하나로만 실행:
 #  - Actions 탭 → Deploy → Run workflow
-#  - deploy-로 시작하는 태그 푸시 (예: deploy-20261106-1532)
+#  - release 브랜치에 푸시 (main 내용을 release로 올리면 배포)
 on:
   workflow_dispatch:
   push:
-    tags: ["deploy-*"]
+    branches: [release]
 
 permissions:
   id-token: write   # GitHub OIDC → AWS 역할 (액세스 키 저장 없음)
