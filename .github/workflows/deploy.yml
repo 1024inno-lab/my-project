@@ -1,8 +1,7 @@
 name: Deploy
 
+# 자동 배포하지 않음 — 작업이 끝났을 때 Actions 탭에서 "Run workflow"로 직접 배포
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

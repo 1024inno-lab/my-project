@@ -66,7 +66,7 @@ EventBridge Scheduler (서울 시간)
 | `OWNER_EMAIL` | 로그인 및 전략 메일을 받을 이메일 |
 | `CLAUDE_MODEL` | (선택) 기본값 `claude-sonnet-5-5` 외 모델을 쓸 때만 |
 
-이 두 값이 생기면 `main` 브랜치에 푸시할 때마다 자동 배포됩니다. 첫 배포는 **Actions → Deploy → Run workflow** 로 바로 실행할 수 있고, 10~15분 정도 걸립니다(CloudFront 생성 시간 포함).
+배포는 자동으로 일어나지 않습니다. 작업을 마쳤을 때 **Actions → Deploy → Run workflow** 로 직접 실행하며, 10~15분 정도 걸립니다(CloudFront 생성 시간 포함).
 
 ### 4단계. 배포 직후 할 일
 
@@ -101,7 +101,7 @@ git switch -c feature/화면-수정        # 작업 브랜치
 cd backend && pytest -q && cd ..       # 테스트
 git commit -am "대시보드 IRP 표 정렬 수정"
 git push -u origin feature/화면-수정   # → PR 생성 시 CI 자동 실행
-# PR을 main에 머지하면 Deploy 워크플로가 AWS에 자동 배포
+# main에 머지해도 배포는 되지 않음 → 작업이 끝나면 Actions → Deploy → Run workflow
 ```
 
 권장 설정: 저장소 **Settings → Branches → Add rule** (`main`)
