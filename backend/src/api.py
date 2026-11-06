@@ -113,17 +113,32 @@ def lookup_stock(q, _b):
     mkt, code = (q.get("market") or "KR").upper(), (q.get("code") or "").strip().upper()
     if not code:
         return 400, {"error": "code가 필요합니다."}
-    if mkt == "KR":
-        return {"market": "KR", "code": code, "name": kis.kr_name(code), "quote": kis.kr_price(code)}
-    excd = (q.get("excd") or "NAS").upper()
-    return {"market": "US", "excd": excd, "code": code, "name": kis.us_name(excd, code), "quote": kis.us_price(excd, code)}
+    if mkt == "KR" and not re.fullmatch(r"[0-9A-Z]{6}", code):
+        return 400, {"error": "국내 종목코드는 6자리입니다. 예) 005930"}
+    try:
+        if mkt == "KR":
+            name, quote, excd = kis.kr_name(code), kis.kr_price(code), None
+        else:
+            excd = (q.get("excd") or "NAS").upper()
+            name, quote = kis.us_name(excd, code), kis.us_price(excd, code)
+    except kis.KISError as e:
+        return 502, {"error": f"시세 조회 실패: {e}"}
+    if not name and not quote.get("price"):
+        where = "국내" if mkt == "KR" else f"미국 {excd}"
+        return 404, {"error": f"{where}에서 '{code}' 종목을 찾지 못했습니다. 코드와 시장(거래소)을 확인해 주세요."}
+    return {"market": mkt, "excd": excd, "code": code, "name": name, "quote": quote}
 
 
 def lookup_bond(q, _b):
     isin = (q.get("isin") or "").strip().upper()
     if not re.fullmatch(r"[A-Z]{2}[A-Z0-9]{10}", isin):
         return 400, {"error": "ISIN은 영문 2자리 + 10자리(총 12자리)입니다."}
-    info = market.bond_info(isin)
+    try:
+        info = market.bond_info(isin)
+    except RuntimeError:
+        raise
+    except Exception as e:  # noqa: BLE001
+        return 502, {"error": f"채권 발행정보 조회 실패(공공데이터포털): {e}"}
     if not info:
         return 404, {"error": "해당 ISIN의 발행 정보를 찾지 못했습니다. 해외채권이면 직접 입력해 주세요."}
     info["nextPay"] = market.next_payment(info.get("issueDate", ""), info.get("maturity", ""), info.get("months", 0), _today())

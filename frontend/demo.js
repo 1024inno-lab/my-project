@@ -36,6 +36,7 @@
       if (path.startsWith("/strategy/dates")) return { dates: ["2026-11-06", "2026-11-05"] };
       if (path.startsWith("/strategy")) return strategy;
       if (path.startsWith("/lookup/bond")) return { name: "국고채 (샘플)", type: "국채", coupon: 3.25, months: 6, issueDate: "2024-06-10", maturity: "2034-06-10", nextPay: "2026-12-10" };
+      if (path.includes("code=000000")) throw new Error("국내에서 '000000' 종목을 찾지 못했습니다. 코드와 시장(거래소)을 확인해 주세요.");
       if (path.startsWith("/lookup/stock")) return { name: "샘플 종목", quote: { price: 12345 } };
       if (opts && opts.method) { const e = new Error("데모 모드에서는 저장되지 않습니다."); throw e; }
       return {};

@@ -5,6 +5,7 @@ only this module needs updating.
 """
 import json
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -38,9 +39,12 @@ def _http(method: str, path: str, headers: dict, params: dict | None = None, bod
             return json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:  # noqa: PERF203
         raise KISError(f"KIS {path} HTTP {e.code}: {e.read().decode(errors='ignore')[:300]}") from e
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        raise KISError(f"KIS 서버에 연결하지 못했습니다({path}): {e}") from e
 
 
 def access_token() -> str:
+    app_key, app_secret = config.secret("KIS_APP_KEY"), config.secret("KIS_APP_SECRET")  # 키 없으면 즉시 안내
     now = time.time()
     if _token_mem.get("exp", 0) - now > 600:
         return _token_mem["token"]
@@ -50,8 +54,8 @@ def access_token() -> str:
         return cached["token"]
     resp = _http("POST", "/oauth2/tokenP", {}, body={
         "grant_type": "client_credentials",
-        "appkey": config.secret("KIS_APP_KEY"),
-        "appsecret": config.secret("KIS_APP_SECRET"),
+        "appkey": app_key,
+        "appsecret": app_secret,
     })
     if "access_token" not in resp:
         raise KISError(f"토큰 발급 실패: {resp}")

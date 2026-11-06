@@ -56,3 +56,28 @@ def test_holdings_flow(monkeypatch):
     assert code == 404
     code, _ = call("GET", "/nope")
     assert code == 404
+
+
+def test_lookup_stock_validation(monkeypatch):
+    fake = FakeDB()
+    for name in ("put", "get", "delete", "query"):
+        monkeypatch.setattr(db, name, getattr(fake, name))
+    code, body = call("GET", "/lookup/stock", query={"market": "KR", "code": "12"})
+    assert code == 400 and "6자리" in body["error"]
+    monkeypatch.setattr(api.kis, "kr_name", lambda c: "")
+    monkeypatch.setattr(api.kis, "kr_price", lambda c: {"price": 0.0})
+    code, body = call("GET", "/lookup/stock", query={"market": "KR", "code": "999999"})
+    assert code == 404 and "찾지 못했습니다" in body["error"]
+    monkeypatch.setattr(api.kis, "kr_name", lambda c: "삼성전자")
+    monkeypatch.setattr(api.kis, "kr_price", lambda c: {"price": 79100.0, "rate": 1.2})
+    code, body = call("GET", "/lookup/stock", query={"market": "KR", "code": "005930"})
+    assert code == 200 and body["name"] == "삼성전자"
+
+
+def test_lookup_missing_key_message(monkeypatch):
+    from common import config
+    config._cache.update(values={k: "" for k in config.SECRET_KEYS}, at=1e18)
+    monkeypatch.setattr(config, "SECRET_ARN", "")
+    code, body = call("GET", "/lookup/stock", query={"market": "KR", "code": "005930"})
+    assert code == 503 and "KIS_APP_KEY" in body["error"]
+    config._cache.update(values=None, at=0)

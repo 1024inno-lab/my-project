@@ -144,8 +144,7 @@
     const contrib = (S.portfolio.contributions || []).reduce((a, c) => a + (+c.amount || 0), 0);
     const target = +set.irpAnnualTarget || 0;
     return `
-    <div class="page-head"><div><p>${esc(todayKST())} · ${marketOpen() ? "장중" : "장 마감"}</p><h1>내 투자 현황</h1></div>
-      <button class="btn primary" data-act="add" data-cat="stock">+ 보유 종목 추가</button></div>
+    <div class="page-head"><div><p>${esc(todayKST())} · ${marketOpen() ? "장중" : "장 마감"}</p><h1>내 투자 현황</h1></div></div>
 
     <section class="grid-auto" aria-label="전체 자산 요약">
       ${kpi("총 평가금액 (주식+채권+IRP)", "₩ " + krw(V.total), `원화 환산 · 환율 ${krw(V.fx)}원`, "")}
@@ -329,14 +328,16 @@
   }
 
   // ---------- 보유 종목 추가·수정 ----------
-  const M = { open: false, tab: "stock", id: null, data: {}, action: "buy", found: null, busy: false };
+  const M = { open: false, tab: "stock", id: null, data: {}, action: "buy", found: null, busy: false, msg: null };
+  const CAT_TITLE = { stock: "주식", bond: "채권", irp: "IRP 상품" };
   function openEditor(cat, id) {
     const cur = id ? (S.portfolio.rows.find((r) => r.id === id) || {}) : {};
-    Object.assign(M, { open: true, tab: cur.category || cat || "stock", id: id || null, data: { ...cur }, action: id ? "buy" : "new", found: id ? { name: cur.name } : null, busy: false });
+    Object.assign(M, { open: true, tab: cur.category || cat || "stock", id: id || null, data: { ...cur }, action: id ? "buy" : "new", found: id ? { name: cur.name } : null, busy: false, msg: null });
     if (!id) M.data = { category: M.tab, market: "KR", excd: "NAS", kind: "etf", risk: "risk", currency: "KRW" };
     drawModal();
   }
   function closeEditor() { M.open = false; const o = document.querySelector(".overlay"); if (o) o.remove(); render(); }
+  const lookupNote = () => !M.msg ? "" : `<div class="found ${M.msg.type === "error" ? "bad" : ""}" role="status">${M.msg.type === "error" ? icon.warn : '<span class="spin" aria-hidden="true"></span>'}<span>${esc(M.msg.text)}</span></div>`;
   const f = (name, label, value, attrs = "") => `<label class="field">${label}<input name="${name}" value="${esc(value ?? "")}" ${attrs}></label>`;
   const sel = (name, label, value, opts) => `<label class="field">${label}<select name="${name}">${opts.map(([v, t]) => `<option value="${v}" ${String(value) === v ? "selected" : ""}>${t}</option>`).join("")}</select></label>`;
 
@@ -349,7 +350,7 @@
         <div class="fields">${sel("market", "시장", d.market, [["KR", "국내 (KOSPI·KOSDAQ)"], ["US", "미국"]])}
           ${d.market === "US" ? sel("excd", "거래소", d.excd, [["NAS", "NASDAQ"], ["NYS", "NYSE"], ["AMS", "AMEX"]]) : ""}</div>
         <label class="field">종목코드<span class="inline"><input name="code" value="${esc(d.code || "")}" placeholder="${d.market === "US" ? "예: NVDA" : "예: 005930"}" ${existing ? "readonly" : ""}><button type="button" class="btn" data-act="lookup">종목 검색</button></span></label>
-        ${M.found ? `<div class="found good">${icon.check}<span><b>${esc(M.found.name || d.name || d.code)}</b>${M.found.price ? " · 현재가 " + price(M.found.price, d.market === "US" ? "USD" : "KRW") + ' <span style="color:var(--ok)">● 실시간</span>' : ""}</span></div>` : ""}
+        ${lookupNote()}${M.found ? `<div class="found good">${icon.check}<span><b>${esc(M.found.name || d.name || d.code)}</b>${M.found.price ? " · 현재가 " + price(M.found.price, d.market === "US" ? "USD" : "KRW") + ' <span style="color:var(--ok)">● 실시간</span>' : ""}</span></div>` : ""}
         ${f("name", "종목명 (검색 시 자동)", d.name)}
         ${isTrade ? `<div class="fields">${M.action !== "close" ? f("tqty", M.action === "buy" ? "추가 매수 수량" : "매도 수량", "", 'inputmode="decimal"') : ""}${f("tprice", M.action === "buy" ? "매수 단가" : "매도 단가", "", 'inputmode="decimal"')}${f("tdate", "거래일", todayKST())}</div>
           <div class="preview" id="trade-preview"></div>`
@@ -359,7 +360,7 @@
     if (M.tab === "bond") {
       const manual = d.currency === "USD" || d.manual;
       return `${manual ? "" : `<label class="field">채권 표준코드 (ISIN · 12자리)<span class="inline"><input name="isin" value="${esc(d.isin || "")}" placeholder="KR로 시작하는 12자리" class="mono"><button type="button" class="btn" data-act="lookup">채권 조회</button></span></label>`}
-        ${M.found && !manual ? `<div class="found good">${icon.check}<span><b>발행 정보 자동 입력됨</b> · 금융위원회 채권기본정보</span></div>` : ""}
+        ${lookupNote()}${M.found && !manual ? `<div class="found good">${icon.check}<span><b>발행 정보 자동 입력됨</b> · 금융위원회 채권기본정보</span></div>` : ""}
         ${f("name", "채권명", d.name)}
         <div class="fields">${f("type", "유형", d.type, 'placeholder="국채·회사채 등"')}${sel("currency", "통화", d.currency || "KRW", [["KRW", "KRW"], ["USD", "USD"]])}${f("coupon", "표면금리 (%)", d.coupon, 'inputmode="decimal"')}</div>
         <div class="fields">${f("months", "이자 지급 간격(개월, 만기일시=0)", d.months, 'inputmode="numeric"')}${f("issueDate", "발행일", d.issueDate, 'placeholder="YYYY-MM-DD"')}${f("maturity", "만기일", d.maturity, 'placeholder="YYYY-MM-DD"')}</div>
@@ -371,7 +372,7 @@
     const kind = d.kind || "etf";
     return `<div class="fields">${sel("kind", "상품 유형", kind, [["etf", "상장 ETF (실시간 시세)"], ["fund", "펀드·TDF"], ["deposit", "예금·원리금보장"]])}${sel("risk", "위험 구분", d.risk || "risk", [["risk", "위험자산"], ["safe", "안전자산"]])}</div>
       ${kind === "etf" ? `<label class="field">종목코드<span class="inline"><input name="code" value="${esc(d.code || "")}" placeholder="예: 360750" ${M.id ? "readonly" : ""}><button type="button" class="btn" data-act="lookup">상품 검색</button></span></label>
-        ${M.found ? `<div class="found good">${icon.check}<span><b>${esc(M.found.name || d.name)}</b>${M.found.price ? " · 현재가 " + krw(M.found.price) + ' <span style="color:var(--ok)">● 실시간</span>' : ""}</span></div>` : ""}
+        ${lookupNote()}${M.found ? `<div class="found good">${icon.check}<span><b>${esc(M.found.name || d.name)}</b>${M.found.price ? " · 현재가 " + krw(M.found.price) + ' <span style="color:var(--ok)">● 실시간</span>' : ""}</span></div>` : ""}
         ${f("name", "상품명 (검색 시 자동)", d.name)}<div class="fields">${f("qty", "보유 수량", d.qty, 'inputmode="decimal"')}${f("avg", "평균 매입단가", d.avg, 'inputmode="decimal"')}</div>`
       : kind === "fund" ? `${f("name", "펀드명", d.name)}<div class="fields">${f("units", "보유 좌수", d.units, 'inputmode="decimal"')}${f("nav", "기준가 (1,000좌당)", d.nav, 'inputmode="decimal"')}${f("principal", "매입 원금", d.principal, 'inputmode="decimal"')}</div>
         <p class="help">펀드·TDF는 KIS 시세가 없어 기준가를 가끔 직접 갱신합니다.</p>`
@@ -384,9 +385,8 @@
     let o = document.querySelector(".overlay");
     if (!o) { o = document.createElement("div"); o.className = "overlay"; document.body.appendChild(o); }
     o.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
-      <div class="modal-head"><div><h2 id="dlg-title">${M.id ? "보유 종목 수정" : "보유 종목 추가"}</h2><span class="muted" style="font-size:13px">저장하면 대시보드와 내일 아침 전략 분석에 반영됩니다</span></div>
+      <div class="modal-head"><div><h2 id="dlg-title">${CAT_TITLE[M.tab]} ${M.id ? "수정" : "추가"}</h2><span class="muted" style="font-size:13px">저장하면 대시보드와 내일 아침 전략 분석에 반영됩니다</span></div>
         <button class="icon-btn" aria-label="닫기" data-act="close">${icon.close}</button></div>
-      ${M.id ? "" : `<div class="tabs" role="tablist">${[["stock", "주식"], ["bond", "채권"], ["irp", "IRP"]].map(([k, t]) => `<button role="tab" aria-selected="${M.tab === k}" class="${M.tab === k ? "on" : ""}" data-tab="${k}">${t}</button>`).join("")}</div>`}
       <form class="modal-body" id="editor" autocomplete="off">${editorBody()}</form>
       <div class="modal-foot">${M.id ? '<button class="btn danger" data-act="delete">이 항목 삭제</button>' : ""}<span style="flex:1"></span>
         <button class="btn" data-act="close">취소</button><button class="btn primary" data-act="save" ${M.busy ? "disabled" : ""}>${M.busy ? "저장 중…" : "저장"}</button></div></div>`;
@@ -413,6 +413,9 @@
   async function lookup() {
     readForm();
     const d = M.data;
+    const target = M.tab === "bond" ? d.isin : d.code;
+    if (!target) { M.msg = { type: "error", text: M.tab === "bond" ? "ISIN을 입력해 주세요." : "종목코드를 입력해 주세요." }; return drawModal(); }
+    M.found = null; M.msg = { type: "loading", text: "조회 중…" }; drawModal();
     try {
       if (M.tab === "bond") {
         const r = await api("/lookup/bond?isin=" + encodeURIComponent(d.isin || ""));
@@ -425,8 +428,8 @@
         if (r.name) M.data.name = r.name;
         if (M.tab === "irp" && r.name && /채|국채|단기|머니마켓|MMF|금리|TDF/i.test(r.name)) M.data.risk = "safe";
       }
-      drawModal();
-    } catch (e) { toast(e.message); }
+      M.msg = null; drawModal();
+    } catch (e) { M.msg = { type: "error", text: e.message }; drawModal(); }
   }
 
   async function save() {
@@ -484,9 +487,14 @@
       try { localStorage.setItem("todo-" + S.strategyDate, JSON.stringify(S.done)); } catch (e) {}
       t.closest(".todo").classList.toggle("done", t.checked);
     } else if (t.dataset.act === "date") { await loadStrategy(t.value); render(); }
-    else if (t.closest("#editor") && ["market", "kind", "currency"].includes(t.name)) { readForm(); M.found = null; drawModal(); }
+    else if (t.closest("#editor") && ["market", "kind", "currency"].includes(t.name)) { readForm(); M.found = null; M.msg = null; drawModal(); }
   });
   document.addEventListener("input", (ev) => { if (ev.target.closest("#editor")) updatePreview(); });
+  document.addEventListener("submit", (ev) => { if (ev.target.id === "editor") ev.preventDefault(); });
+  document.addEventListener("keydown", (ev) => {  // 코드 입력 후 Enter = 검색
+    const t = ev.target;
+    if (ev.key === "Enter" && t.closest && t.closest("#editor") && (t.name === "code" || t.name === "isin")) { ev.preventDefault(); lookup(); }
+  });
   document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && M.open) closeEditor(); });
 
   // ---------- 라우팅 ----------
